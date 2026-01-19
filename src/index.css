@@ -1,0 +1,193 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* RenTelMe Premium Design System - Luxury, Trust & Elegance */
+
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap');
+
+@layer base {
+  :root {
+    /* Core Brand Colors - Deep Emerald & Champagne Luxury */
+    --background: 40 33% 98%;
+    /* Soft Cream White */
+    --foreground: 166 46% 12%;
+    /* Deep Dark Green/Black */
+
+    --card: 0 0% 100%;
+    --card-foreground: 166 46% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 166 46% 12%;
+
+    /* Primary - Deep Emerald Green (Wealth & Stability) */
+    --primary: 166 60% 24%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary - Sage/Earthy Tone */
+    --secondary: 154 20% 88%;
+    --secondary-foreground: 166 60% 24%;
+
+    /* Muted - Warm Neutral */
+    --muted: 40 20% 94%;
+    --muted-foreground: 25 5% 45%;
+
+    /* Accent - Gold/Sand */
+    --accent: 35 40% 90%;
+    --accent-foreground: 166 60% 24%;
+
+    /* Text Colors */
+    --navy: 166 60% 15%;
+    /* Basically distinct dark green */
+    --navy-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 166 30% 80%;
+    /* Darker border for better visibility */
+    --input: 166 30% 80%;
+    --ring: 166 60% 24%;
+
+    --radius: 1rem;
+    /* Softer, more modern curves */
+
+    /* Custom Gradients - Subtle & Premium */
+    --gradient-primary: linear-gradient(135deg, hsl(166 60% 24%) 0%, hsl(166 50% 18%) 100%);
+    --gradient-secondary: linear-gradient(135deg, hsl(35 40% 90%) 0%, hsl(40 33% 96%) 100%);
+    --gradient-hero: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, #FAFAF9 100%);
+    --gradient-warm: linear-gradient(to right, #ffffff, #fdfcfb);
+
+    /* Shadows - Deep & diffused for depth */
+    --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.05);
+    /* Slightly stronger shadow */
+    --shadow-medium: 0 12px 24px -6px rgba(0, 0, 0, 0.08);
+    --shadow-elevated: 0 25px 50px -12px rgba(26, 77, 46, 0.15);
+    /* Tinted subtle shadow */
+    --shadow-primary: 0 10px 30px -10px rgba(26, 77, 46, 0.4);
+
+    /* Sidebar */
+    --sidebar-background: 40 33% 98%;
+    --sidebar-foreground: 166 46% 12%;
+    --sidebar-primary: 166 60% 24%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 35 40% 90%;
+    --sidebar-accent-foreground: 166 60% 24%;
+    --sidebar-border: 166 20% 90%;
+    --sidebar-ring: 166 60% 24%;
+  }
+
+  .dark {
+    --background: 166 46% 8%;
+    /* Very dark green black */
+    --foreground: 40 33% 98%;
+
+    --card: 166 46% 10%;
+    --card-foreground: 40 33% 98%;
+
+    --popover: 166 46% 10%;
+    --popover-foreground: 40 33% 98%;
+
+    --primary: 166 50% 45%;
+    /* Lighter emerald */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 166 30% 20%;
+    --secondary-foreground: 40 33% 98%;
+
+    --muted: 166 30% 15%;
+    --muted-foreground: 166 10% 70%;
+
+    --accent: 166 30% 20%;
+    --accent-foreground: 40 33% 98%;
+
+    --navy: 0 0% 100%;
+    --navy-foreground: 166 46% 12%;
+
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 166 30% 20%;
+    --input: 166 30% 20%;
+    --ring: 166 50% 45%;
+
+    --sidebar-background: 166 46% 8%;
+    --sidebar-foreground: 40 33% 98%;
+    --sidebar-primary: 166 50% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 166 30% 20%;
+    --sidebar-accent-foreground: 40 33% 98%;
+    --sidebar-border: 166 30% 20%;
+    --sidebar-ring: 166 50% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Manrope', sans-serif;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: 'Playfair Display', serif;
+    @apply text-foreground font-bold tracking-tight;
+  }
+
+  h1 {
+    @apply leading-[1.1];
+  }
+
+  p {
+    @apply leading-relaxed;
+  }
+}
+
+@layer components {
+  .container-section {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .text-gradient-primary {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-primary);
+  }
+
+  .bg-gradient-primary {
+    background-image: var(--gradient-primary);
+  }
+
+  .glass-card {
+    @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-lg;
+  }
+
+  .btn-primary {
+    @apply bg-primary text-primary-foreground shadow-primary hover:bg-primary/90 transition-all duration-300;
+  }
+}
+
+@layer utilities {
+  .animation-delay-200 {
+    animation-delay: 200ms;
+  }
+
+  .animation-delay-400 {
+    animation-delay: 400ms;
+  }
+
+  .animation-delay-600 {
+    animation-delay: 600ms;
+  }
+}
