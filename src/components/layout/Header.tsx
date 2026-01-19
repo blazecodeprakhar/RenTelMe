@@ -74,17 +74,16 @@ export const Header = () => {
 
             {/* CTA Buttons - PC */}
             <div className="hidden lg:flex items-center gap-4">
-              <Button
-                variant="ghost"
-                className="font-semibold text-foreground/70 hover:text-primary hover:bg-transparent px-2"
-              >
-                Sign In
-              </Button>
-              <Button
-                className="rounded-full px-6 font-bold shadow-lg bg-primary text-white hover:bg-primary/90 hover:scale-105 transition-all duration-300"
-              >
-                Get Started
-              </Button>
+              <Link to="/signin">
+                <Button variant="ghost" className="font-semibold text-foreground/70 hover:text-primary hover:bg-transparent px-2">
+                  Sign In
+                </Button>
+              </Link>
+              <Link to="/signup">
+                <Button className="rounded-full px-6 font-bold shadow-lg bg-primary text-white hover:bg-primary/90 hover:scale-105 transition-all duration-300">
+                  Get Started
+                </Button>
+              </Link>
             </div>
 
             {/* Mobile Menu Toggle */}
@@ -144,12 +143,16 @@ export const Header = () => {
               transition={{ delay: 0.4 }}
               className="mt-auto mb-8 space-y-4"
             >
-              <Button variant="outline" className="w-full text-lg py-6 rounded-xl border-2 border-primary/20 text-primary font-bold hover:bg-primary/5">
-                Sign In
-              </Button>
-              <Button className="w-full text-lg py-6 rounded-xl bg-primary text-white shadow-xl shadow-primary/30 font-bold">
-                Get Started
-              </Button>
+              <Link to="/signin" onClick={() => setIsMobileMenuOpen(false)}>
+                <Button variant="outline" className="w-full text-lg py-6 rounded-xl border-2 border-primary/20 text-primary font-bold hover:bg-primary/5">
+                  Sign In
+                </Button>
+              </Link>
+              <Link to="/signup" onClick={() => setIsMobileMenuOpen(false)}>
+                <Button className="w-full text-lg py-6 rounded-xl bg-primary text-white shadow-xl shadow-primary/30 font-bold">
+                  Get Started
+                </Button>
+              </Link>
             </motion.div>
           </motion.div>
         )}

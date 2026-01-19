@@ -13,6 +13,8 @@ import Terms from "./pages/Terms";
 import CookiePolicy from "./pages/CookiePolicy";
 import Disclaimer from "./pages/Disclaimer";
 import NotFound from "./pages/NotFound";
+import SignIn from "./pages/SignIn";
+import SignUp from "./pages/SignUp";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +37,8 @@ const App = () => (
           <Route path="/terms" element={<Terms />} />
           <Route path="/cookie-policy" element={<CookiePolicy />} />
           <Route path="/disclaimer" element={<Disclaimer />} />
+          <Route path="/signin" element={<SignIn />} />
+          <Route path="/signup" element={<SignUp />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
