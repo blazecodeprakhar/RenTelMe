@@ -1,4 +1,4 @@
-import { Heart, MapPin, BedDouble, Bath, Car, Users } from "lucide-react";
+import { Heart, MapPin, BedDouble, Bath, Car, Users, Utensils } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ interface PropertyCardProps {
   parking?: string;
   isVerified?: boolean;
   propertyFor?: string;
+  kitchenType?: string;
 }
 
 export const PropertyCard = ({
@@ -27,6 +28,7 @@ export const PropertyCard = ({
   parking,
   isVerified = true,
   propertyFor,
+  kitchenType,
 }: PropertyCardProps) => {
   return (
     <motion.div
@@ -91,6 +93,12 @@ export const PropertyCard = ({
             <div className="flex items-center gap-1.5">
               <Car className="w-4 h-4" />
               <span>{parking}</span>
+            </div>
+          )}
+          {kitchenType && (
+            <div className="flex items-center gap-1.5">
+              <Utensils className="w-4 h-4" />
+              <span className="capitalize">{kitchenType === 'both' ? 'Both Veg/Non-Veg' : kitchenType}</span>
             </div>
           )}
         </div>

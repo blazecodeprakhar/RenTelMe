@@ -1,13 +1,12 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
 import {
-  Search, MapPin, Filter, Grid, List, Heart,
-  Users, Building2, Home, ChevronDown, SlidersHorizontal
+  Search, MapPin, Grid, List, Heart,
+  Users, ChevronDown, SlidersHorizontal
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Layout } from "@/components/layout/Layout";
 import { PropertyCard } from "@/components/cards/PropertyCard";
 import {
@@ -17,10 +16,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-import property1 from "@/assets/property-1.jpg";
-import property2 from "@/assets/property-2.jpg";
-import property3 from "@/assets/property-3.jpg";
+import { db } from "@/lib/firebase";
+import { collection, getDocs, query, where } from "firebase/firestore";
 
 const propertyTypes = [
   { value: "all", label: "All Types" },
@@ -32,86 +29,45 @@ const propertyTypes = [
   { value: "commercial", label: "Commercial" },
 ];
 
-const allProperties = [
-  {
-    image: property1,
-    title: "Modern Family Villa",
-    location: "Koramangala, Bangalore",
-    price: "35,000",
-    type: "Villa",
-    bedrooms: 3,
-    bathrooms: 2,
-    parking: "Car + Bike",
-    propertyFor: "For Families"
-  },
-  {
-    image: property2,
-    title: "Cozy Studio Apartment",
-    location: "Andheri West, Mumbai",
-    price: "18,000",
-    type: "Apartment",
-    bedrooms: 1,
-    bathrooms: 1,
-    parking: "Bike",
-    propertyFor: "For Students"
-  },
-  {
-    image: property3,
-    title: "Spacious 3BHK Flat",
-    location: "Salt Lake, Kolkata",
-    price: "28,000",
-    type: "Flat",
-    bedrooms: 3,
-    bathrooms: 2,
-    parking: "Car + Bike",
-    propertyFor: "For Families"
-  },
-  {
-    image: property1,
-    title: "Premium PG for Girls",
-    location: "Indiranagar, Bangalore",
-    price: "12,000",
-    type: "PG",
-    bedrooms: 1,
-    bathrooms: 1,
-    parking: "Bike",
-    propertyFor: "Girls Only"
-  },
-  {
-    image: property2,
-    title: "Bachelor Pad",
-    location: "Powai, Mumbai",
-    price: "15,000",
-    type: "Apartment",
-    bedrooms: 2,
-    bathrooms: 1,
-    parking: "Bike",
-    propertyFor: "Boys Only"
-  },
-  {
-    image: property3,
-    title: "Commercial Office Space",
-    location: "Cyber City, Gurgaon",
-    price: "75,000",
-    type: "Commercial",
-    bedrooms: 0,
-    bathrooms: 2,
-    parking: "Car + Bike",
-    propertyFor: "Commercial"
-  }
-];
-
 const FindProperty = () => {
   const [searchLocation, setSearchLocation] = useState("");
   const [selectedType, setSelectedType] = useState("all");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [showFilters, setShowFilters] = useState(false);
+  const [properties, setProperties] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredProperties = allProperties.filter(property => {
-    const matchesSearch = property.location.toLowerCase().includes(searchLocation.toLowerCase()) ||
-      property.title.toLowerCase().includes(searchLocation.toLowerCase());
+  useEffect(() => {
+    const fetchProperties = async () => {
+      setLoading(true);
+      try {
+        // Only fetch verified properties for main site
+        const q = query(collection(db, "properties"), where("status", "==", "Verified"));
+        const querySnapshot = await getDocs(q);
+        const fetchedProperties = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setProperties(fetchedProperties);
+      } catch (error) {
+        console.error("Error fetching properties:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProperties();
+  }, []);
+
+  const filteredProperties = properties.filter(property => {
+    const matchesSearch = (property.location?.toLowerCase() || "").includes(searchLocation.toLowerCase()) ||
+      (property.title?.toLowerCase() || "").includes(searchLocation.toLowerCase());
+
+    // Normalize property type matching
     const matchesType = selectedType === "all" ||
-      property.propertyFor.toLowerCase().includes(selectedType.toLowerCase());
+      (property.propertyFor?.toLowerCase() || "").includes(selectedType.toLowerCase()) ||
+      (property.type?.toLowerCase() || "").includes(selectedType.toLowerCase());
+
     return matchesSearch && matchesType;
   });
 
@@ -129,7 +85,7 @@ const FindProperty = () => {
               Find Your Ideal Rental
             </h1>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Search from our verified listings with complete neighborhood insights. Each listing includes details about nearby services and daily essentials.
+              Search from our verified listings with complete neighborhood insights.
             </p>
           </motion.div>
 
@@ -175,8 +131,8 @@ const FindProperty = () => {
                   key={filter}
                   onClick={() => setSelectedType(filter.toLowerCase().replace(" ", ""))}
                   className={`px-4 py-2 text-sm rounded-full transition-colors ${selectedType === filter.toLowerCase().replace(" ", "")
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-accent hover:bg-primary/10"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-accent hover:bg-primary/10"
                     }`}
                 >
                   {filter}
@@ -194,7 +150,7 @@ const FindProperty = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
             <div>
               <h2 className="font-heading text-2xl font-semibold text-navy">
-                {filteredProperties.length} Properties Found
+                {loading ? "Loading..." : `${filteredProperties.length} Properties Found`}
               </h2>
               <p className="text-muted-foreground text-sm">
                 {selectedType !== "all" ? `Showing ${propertyTypes.find(t => t.value === selectedType)?.label}` : "All verified listings"}
@@ -228,17 +184,19 @@ const FindProperty = () => {
           </div>
 
           {/* Properties Grid */}
-          {filteredProperties.length > 0 ? (
+          {loading ? (
+            <div className="text-center py-20">Loading Verified Properties...</div>
+          ) : filteredProperties.length > 0 ? (
             <motion.div
               layout
               className={`grid gap-6 ${viewMode === "grid"
-                  ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
-                  : "grid-cols-1"
+                ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+                : "grid-cols-1"
                 }`}
             >
               {filteredProperties.map((property, index) => (
                 <motion.div
-                  key={index}
+                  key={property.id || index}
                   layout
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -261,7 +219,7 @@ const FindProperty = () => {
                 No Properties Found
               </h3>
               <p className="text-muted-foreground mb-6">
-                Try adjusting your search filters or explore a different location.
+                Try adjusting your search filters.
               </p>
               <Button onClick={() => { setSearchLocation(""); setSelectedType("all"); }}>
                 Clear Filters
@@ -270,7 +228,7 @@ const FindProperty = () => {
           )}
 
           {/* Load More */}
-          {filteredProperties.length > 0 && (
+          {filteredProperties.length > 12 && (
             <div className="text-center mt-12">
               <Button variant="outline" size="lg">
                 Load More Properties

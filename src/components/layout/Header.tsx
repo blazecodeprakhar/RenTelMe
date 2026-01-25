@@ -1,8 +1,20 @@
+
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X, Home, Search, PlusCircle, Users, Phone } from "lucide-react";
+import { Menu, X, Home, Search, PlusCircle, Users, Phone, User as UserIcon, LogOut, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { auth } from "@/lib/firebase";
+import { signOut } from "firebase/auth";
 
 const navLinks = [
   { name: "Home", path: "/", icon: Home },
@@ -16,6 +28,7 @@ export const Header = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
   const [isScrolled, setIsScrolled] = useState(false);
+  const { currentUser, loading } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -33,6 +46,12 @@ export const Header = () => {
   }, [isMobileMenuOpen]);
 
   const isActive = (path: string) => location.pathname === path;
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    // Optional: Refresh or navigate if needed, but AuthContext updates automatically
+    setIsMobileMenuOpen(false);
+  };
 
   return (
     <>
@@ -74,16 +93,56 @@ export const Header = () => {
 
             {/* CTA Buttons - PC */}
             <div className="hidden lg:flex items-center gap-4">
-              <Link to="/signin">
-                <Button variant="ghost" className="font-semibold text-foreground/70 hover:text-primary hover:bg-transparent px-2">
-                  Sign In
-                </Button>
-              </Link>
-              <Link to="/signup">
-                <Button className="rounded-full px-6 font-bold shadow-lg bg-primary text-white hover:bg-primary/90 hover:scale-105 transition-all duration-300">
-                  Get Started
-                </Button>
-              </Link>
+              {!loading && currentUser ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="relative h-10 w-10 rounded-full overflow-hidden border border-gray-200">
+                      {currentUser.photoURL ? (
+                        <div className="h-full w-full rounded-full overflow-hidden">
+                          <img src={currentUser.photoURL} alt="User" className="h-full w-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className="h-full w-full rounded-full bg-primary/10 flex items-center justify-center">
+                          <span className="text-sm font-semibold text-primary">{currentUser.email?.charAt(0).toUpperCase()}</span>
+                        </div>
+                      )}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-56" align="end" forceMount>
+                    <DropdownMenuLabel className="font-normal">
+                      <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none">{currentUser.displayName || "User"}</p>
+                        <p className="text-xs leading-none text-muted-foreground">{currentUser.email}</p>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link to="/profile" className="cursor-pointer">
+                        <Settings className="mr-2 h-4 w-4" />
+                        <span>Account Settings</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleLogout} className="text-red-600 cursor-pointer">
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>Log out</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <>
+                  <Link to="/signin">
+                    <Button variant="ghost" className="font-semibold text-foreground/70 hover:text-primary hover:bg-transparent px-2">
+                      Sign In
+                    </Button>
+                  </Link>
+                  <Link to="/signup">
+                    <Button className="rounded-full px-6 font-bold shadow-lg bg-primary text-white hover:bg-primary/90 hover:scale-105 transition-all duration-300">
+                      Get Started
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
 
             {/* Mobile Menu Toggle */}
@@ -135,6 +194,29 @@ export const Header = () => {
                   </Link>
                 </motion.div>
               ))}
+
+              {/* Mobile Account Link */}
+              {currentUser && (
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.5 }}
+                >
+                  <Link
+                    to="/profile"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`flex items-center gap-4 p-4 rounded-2xl text-xl font-serif font-medium transition-all ${isActive('/profile')
+                      ? "bg-primary/10 text-primary translate-x-2"
+                      : "text-foreground/80 hover:bg-gray-50 hover:translate-x-2"
+                      }`}
+                  >
+                    <div className={`p-2 rounded-full ${isActive('/profile') ? "bg-primary text-white" : "bg-gray-100 text-gray-500"}`}>
+                      <Settings className="w-5 h-5" />
+                    </div>
+                    Account Settings
+                  </Link>
+                </motion.div>
+              )}
             </nav>
 
             <motion.div
@@ -143,16 +225,24 @@ export const Header = () => {
               transition={{ delay: 0.4 }}
               className="mt-auto mb-8 space-y-4"
             >
-              <Link to="/signin" onClick={() => setIsMobileMenuOpen(false)}>
-                <Button variant="outline" className="w-full text-lg py-6 rounded-xl border-2 border-primary/20 text-primary font-bold hover:bg-primary/5">
-                  Sign In
+              {!loading && currentUser ? (
+                <Button variant="outline" onClick={handleLogout} className="w-full text-lg py-6 rounded-xl border-2 border-red-200 text-red-600 font-bold hover:bg-red-50">
+                  Sign Out
                 </Button>
-              </Link>
-              <Link to="/signup" onClick={() => setIsMobileMenuOpen(false)}>
-                <Button className="w-full text-lg py-6 rounded-xl bg-primary text-white shadow-xl shadow-primary/30 font-bold">
-                  Get Started
-                </Button>
-              </Link>
+              ) : (
+                <>
+                  <Link to="/signin" onClick={() => setIsMobileMenuOpen(false)}>
+                    <Button variant="outline" className="w-full text-lg py-6 rounded-xl border-2 border-primary/20 text-primary font-bold hover:bg-primary/5">
+                      Sign In
+                    </Button>
+                  </Link>
+                  <Link to="/signup" onClick={() => setIsMobileMenuOpen(false)}>
+                    <Button className="w-full text-lg py-6 rounded-xl bg-primary text-white shadow-xl shadow-primary/30 font-bold">
+                      Get Started
+                    </Button>
+                  </Link>
+                </>
+              )}
             </motion.div>
           </motion.div>
         )}

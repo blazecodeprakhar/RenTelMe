@@ -1,12 +1,16 @@
 
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, ArrowRight, Mail, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Layout } from "@/components/layout/Layout";
 import { motion } from "framer-motion";
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { auth, db } from "@/lib/firebase";
+import { toast } from "sonner";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
 const SignIn = () => {
     const [showPassword, setShowPassword] = useState(false);
@@ -14,11 +18,65 @@ const SignIn = () => {
         email: "",
         password: "",
     });
+    const navigate = useNavigate();
+    const [loading, setLoading] = useState(false);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        // Handle sign in logic here
-        console.log("Sign in with:", formData);
+        setLoading(true);
+        try {
+            await signInWithEmailAndPassword(auth, formData.email, formData.password);
+            toast.success("Successfully logged in!");
+            navigate("/");
+        } catch (error: any) {
+            console.error(error);
+            toast.error(error.message || "Failed to sign in. Please check your credentials.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleGoogleLogin = async () => {
+        setLoading(true);
+        try {
+            const provider = new GoogleAuthProvider();
+            const result = await signInWithPopup(auth, provider);
+            const user = result.user;
+
+            const docRef = doc(db, "users", user.uid);
+            const docSnap = await getDoc(docRef);
+
+            if (!docSnap.exists()) {
+                // New User: Create profile
+                await setDoc(docRef, {
+                    uid: user.uid,
+                    fullName: user.displayName || "",
+                    email: user.email || "",
+                    role: "tenant", // Default
+                    createdAt: new Date().toISOString(),
+                    photoURL: user.photoURL || ""
+                });
+            } else {
+                // Existing User: Sync missing info (like photo) if they logged in with Google again
+                const data = docSnap.data();
+                await setDoc(docRef, {
+                    ...data,
+                    // If DB is missing photo/name but Google has it, update it. 
+                    // But if DB has it, keep DB version (user might have customized it).
+                    fullName: data.fullName || user.displayName || "",
+                    photoURL: data.photoURL || user.photoURL || "",
+                    email: user.email // Ensure email is in sync
+                }, { merge: true });
+            }
+
+            toast.success("Successfully logged in with Google!");
+            navigate("/");
+        } catch (error: any) {
+            console.error(error);
+            toast.error(error.message || "Google sign in failed. Please try again.");
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -85,9 +143,14 @@ const SignIn = () => {
 
                             <Button
                                 type="submit"
+                                disabled={loading}
                                 className="w-full h-12 bg-gradient-primary text-white font-semibold text-lg shadow-lg hover:shadow-primary/50 transition-all duration-300 transform hover:-translate-y-0.5"
                             >
-                                Sign In <ArrowRight className="w-5 h-5 ml-2" />
+                                {loading ? "Signing In..." : (
+                                    <>
+                                        Sign In <ArrowRight className="w-5 h-5 ml-2" />
+                                    </>
+                                )}
                             </Button>
                         </form>
 
@@ -100,7 +163,6 @@ const SignIn = () => {
                             </p>
                         </div>
 
-                        {/* Social Login Dividers could go here */}
                         <div className="mt-8 relative">
                             <div className="absolute inset-0 flex items-center">
                                 <div className="w-full border-t border-gray-200"></div>
@@ -110,8 +172,8 @@ const SignIn = () => {
                             </div>
                         </div>
 
-                        <div className="mt-6 grid grid-cols-2 gap-4">
-                            <Button variant="outline" className="h-11 border-gray-200 hover:bg-gray-50">
+                        <div className="mt-6 gap-4">
+                            <Button variant="outline" className="w-full h-11 border-gray-200 hover:bg-gray-50" onClick={handleGoogleLogin} disabled={loading}>
                                 <svg className="h-5 w-5 mr-2" viewBox="0 0 24 24">
                                     <path
                                         d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -130,13 +192,7 @@ const SignIn = () => {
                                         fill="#EA4335"
                                     />
                                 </svg>
-                                Google
-                            </Button>
-                            <Button variant="outline" className="h-11 border-gray-200 hover:bg-gray-50">
-                                <svg className="h-5 w-5 mr-2 text-[#1877F2]" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-                                </svg>
-                                Facebook
+                                Continue with Google
                             </Button>
                         </div>
                     </div>
