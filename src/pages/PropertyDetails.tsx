@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { fixImageUrl } from "@/lib/utils";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -315,7 +316,7 @@ const PropertyDetails = () => {
                                 <div className="bg-white rounded-3xl p-6 border border-gray-200 flex items-center gap-5 shadow-sm">
                                     <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden border-4 border-white shadow-md">
                                         {property.ownerPhotoURL ? (
-                                            <img src={property.ownerPhotoURL} alt={property.ownerName} className="w-full h-full object-cover" />
+                                            <img src={fixImageUrl(property.ownerPhotoURL)} alt={property.ownerName} className="w-full h-full object-cover" />
                                         ) : (
                                             <div className="w-full h-full bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-white text-2xl font-bold">
                                                 {property.ownerName ? property.ownerName[0] : "O"}
@@ -346,7 +347,7 @@ const PropertyDetails = () => {
                             {/* Main Image */}
                             <div className="relative w-full max-w-6xl h-[70vh] md:h-[80vh] flex items-center justify-center">
                                 <img
-                                    src={allImages[photoIndex]}
+                                    src={fixImageUrl(allImages[photoIndex])}
                                     alt={`Gallery view ${photoIndex + 1}`}
                                     className="max-w-full max-h-full object-contain rounded-md shadow-2xl"
                                 />
@@ -380,7 +381,7 @@ const PropertyDetails = () => {
                                         onClick={() => setPhotoIndex(idx)}
                                         className={`relative h-16 w-24 shrink-0 rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${idx === photoIndex ? 'border-primary ring-2 ring-primary/50' : 'border-transparent opacity-60 hover:opacity-100'}`}
                                     >
-                                        <img src={img} className="w-full h-full object-cover" alt="thumbnail" />
+                                        <img src={fixImageUrl(img)} className="w-full h-full object-cover" alt="thumbnail" />
                                     </div>
                                 ))}
                             </div>

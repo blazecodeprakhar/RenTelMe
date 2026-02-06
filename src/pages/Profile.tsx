@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { User, Mail, Phone, Camera, LogOut } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { fixImageUrl } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { db, auth } from "@/lib/firebase";
 import { doc, getDoc, updateDoc, setDoc } from "firebase/firestore";
@@ -149,7 +150,7 @@ const Profile = () => {
                                     <div className="relative group">
                                         <div className="h-24 w-24 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden border-4 border-white shadow-lg relative">
                                             {userData.photoURL ? (
-                                                <img src={userData.photoURL} alt="Profile" className="h-full w-full object-cover" />
+                                                <img src={fixImageUrl(userData.photoURL)} alt="Profile" className="h-full w-full object-cover" />
                                             ) : (
                                                 <span className="text-3xl font-bold text-gray-500">
                                                     {getInitials()}

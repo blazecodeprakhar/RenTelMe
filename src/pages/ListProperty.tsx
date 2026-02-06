@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Layout } from "@/components/layout/Layout";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
+import { fixImageUrl } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -1074,7 +1075,7 @@ const ListProperty = () => {
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                       {existingImages.map((imgUrl, idx) => (
                         <div key={idx} className={`relative group aspect-square rounded-lg overflow-hidden border shadow-sm ${coverSelection === imgUrl ? 'ring-4 ring-primary border-primary' : 'border-border'}`}>
-                          <img src={imgUrl} alt="Existing" className="w-full h-full object-cover" />
+                          <img src={fixImageUrl(imgUrl)} alt="Existing" className="w-full h-full object-cover" />
 
                           {/* Cover Badge */}
                           {coverSelection === imgUrl && (
