@@ -5,6 +5,10 @@ node_modules
 .pnp
 .pnp.js
 
+# Sub-Projects (Standalone Repos)
+server/
+admin-portal/
+
 # Testing
 coverage
 
@@ -21,6 +25,10 @@ out
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.log
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
 
 # Environment Variables
 .env
