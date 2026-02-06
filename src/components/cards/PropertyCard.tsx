@@ -4,6 +4,7 @@ import { Heart, MapPin, BedDouble, Bath, Car, Users, Utensils, Image as ImageIco
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { fixImageUrl } from "@/lib/utils";
 
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -101,7 +102,7 @@ export const PropertyCard = ({
         {displayImages.map((img, idx) => (
           <img
             key={`${img}-${idx}`}
-            src={img}
+            src={fixImageUrl(img)}
             alt={`${title} - view ${idx + 1}`}
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ease-out ${activeImageIndex === idx ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
             onLoad={() => idx === 0 && setIsLoading(false)}
