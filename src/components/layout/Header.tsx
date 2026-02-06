@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
+import { fixImageUrl } from "@/lib/utils";
 
 const navLinks = [
   { name: "Home", path: "/", icon: Home },
@@ -99,7 +100,7 @@ export const Header = () => {
                     <Button variant="ghost" size="icon" className="relative rounded-full overflow-hidden border border-gray-200 shadow-sm">
                       {currentUser.photoURL ? (
                         <img
-                          src={currentUser.photoURL}
+                          src={fixImageUrl(currentUser.photoURL)}
                           alt={currentUser.displayName || "User"}
                           className="h-full w-full object-cover"
                         />
