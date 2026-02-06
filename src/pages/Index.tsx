@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
 import {
   Search, MapPin, Shield, Home, Building2, Users,
@@ -14,10 +14,11 @@ import { TestimonialCard } from "@/components/cards/TestimonialCard";
 import { Layout } from "@/components/layout/Layout";
 
 import heroImage from "@/assets/hero-home.jpg";
-import property1 from "@/assets/property-1.jpg";
-import property2 from "@/assets/property-2.jpg";
-import property3 from "@/assets/property-3.jpg";
 import neighborhoodImage from "@/assets/neighborhood.jpg";
+
+import { useState, useEffect } from "react";
+import { db } from "@/lib/firebase";
+import { collection, query, where, limit, getDocs, onSnapshot } from "firebase/firestore";
 
 const fadeInUp = {
   initial: { opacity: 0, y: 20 },
@@ -28,42 +29,6 @@ const fadeInUp = {
 const staggerContainer = {
   animate: { transition: { staggerChildren: 0.1 } }
 };
-
-const featuredProperties = [
-  {
-    image: property1,
-    title: "Modern Family Villa",
-    location: "Koramangala, Bangalore",
-    price: "35,000",
-    type: "Villa",
-    bedrooms: 3,
-    bathrooms: 2,
-    parking: "Car + Bike",
-    propertyFor: "For Families"
-  },
-  {
-    image: property2,
-    title: "Cozy Studio Apartment",
-    location: "Andheri West, Mumbai",
-    price: "18,000",
-    type: "Apartment",
-    bedrooms: 1,
-    bathrooms: 1,
-    parking: "Bike",
-    propertyFor: "For Students"
-  },
-  {
-    image: property3,
-    title: "Spacious 3BHK Flat",
-    location: "Salt Lake, Kolkata",
-    price: "28,000",
-    type: "Flat",
-    bedrooms: 3,
-    bathrooms: 2,
-    parking: "Car + Bike",
-    propertyFor: "For Families"
-  }
-];
 
 const amenities = [
   {
@@ -141,6 +106,78 @@ const testimonials = [
 ];
 
 const Index = () => {
+  const [featuredProperties, setFeaturedProperties] = useState<any[]>([]);
+  const [loadingProperties, setLoadingProperties] = useState(true);
+
+  // Real-time Premium Collection Listener
+  useEffect(() => {
+    setLoadingProperties(true);
+
+    // Query only sponsored AND verified properties
+    const q = query(
+      collection(db, "properties"),
+      where("isSponsored", "==", true),
+      where("status", "==", "Verified")
+    );
+
+    // Real-time listener
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const now = new Date();
+
+      const validAds = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data
+        };
+      }).filter((p: any) => {
+        // --- 1. Basic Existence Check ---
+        if (!p.sponsoredUntil) return false; // Must have an expiry date
+
+        // --- 2. Robust Date Parsing Helper ---
+        const parseDate = (d: any) => {
+          if (!d) return null;
+          // Handle Firestore Timestamp
+          if (typeof d.toDate === 'function') return d.toDate();
+          // Handle String/Number
+          const parsed = new Date(d);
+          return isNaN(parsed.getTime()) ? null : parsed;
+        };
+
+        const expiryDate = parseDate(p.sponsoredUntil);
+        const startDate = parseDate(p.sponsoredAt); // Check start date if exists
+
+        // --- 3. Strict Logic Validation ---
+
+        // A. Expiry Date Validity
+        if (!expiryDate) {
+          console.warn(`Invalid expiry date for ad: ${p.title}`);
+          return false;
+        }
+
+        // B. Expiry Check (End Date >= Current Time)
+        // usage: expiry must be in the future
+        if (expiryDate <= now) return false;
+
+        // C. Start Date Check (Start Date <= Current Time)
+        // If sponsoredAt is set, we must be past it. 
+        // If not set, we assume it started immediately upon creation.
+        if (startDate && startDate > now) return false;
+
+        return true;
+      });
+
+      console.log(`✨ Premium Collection: Displaying ${validAds.length} active ads`);
+      setFeaturedProperties(validAds);
+      setLoadingProperties(false);
+    }, (error) => {
+      console.error("Error fetching premium ads:", error);
+      setLoadingProperties(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   return (
     <Layout>
       {/* Hero Section - Luxury & Immersive */}
@@ -197,15 +234,11 @@ const Index = () => {
               </div>
 
               {/* Quick Tags */}
-              <div className="flex flex-wrap justify-center gap-3 mt-4">
-                {["Family Villas", "Student Housing", "Commercial", "Luxury Apartments"].map((tag) => (
-                  <button
-                    key={tag}
-                    className="px-4 py-1.5 text-sm rounded-full bg-black/20 text-white/90 border border-white/10 hover:bg-white hover:text-primary transition-all backdrop-blur-sm"
-                  >
-                    {tag}
-                  </button>
-                ))}
+              <div className="flex flex-wrap items-center justify-center gap-3 mt-6 text-white/90 text-sm font-medium">
+                <span>Trending:</span>
+                <span className="px-3 py-1 bg-white/10 rounded-full border border-white/20 hover:bg-white/20 transition-colors cursor-pointer">Bandra West</span>
+                <span className="px-3 py-1 bg-white/10 rounded-full border border-white/20 hover:bg-white/20 transition-colors cursor-pointer">Sea View</span>
+                <span className="px-3 py-1 bg-white/10 rounded-full border border-white/20 hover:bg-white/20 transition-colors cursor-pointer">Gated Society</span>
               </div>
             </motion.div>
 
@@ -229,6 +262,99 @@ const Index = () => {
               ))}
             </motion.div>
           </motion.div>
+        </div>
+
+        {/* Floating Scroll Indicator */}
+        <motion.div
+          animate={{ y: [0, 10, 0] }}
+          transition={{ repeat: Infinity, duration: 2 }}
+          className="absolute bottom-10 left-1/2 -translate-x-1/2 text-white/70"
+        >
+          <div className="w-8 h-12 border-2 border-white/30 rounded-full flex justify-center p-2 backdrop-blur-sm">
+            <div className="w-1 h-3 bg-white rounded-full" />
+          </div>
+        </motion.div>
+      </section>
+
+      {/* Featured Properties / Premium Collection - MOVED TO TOP */}
+      <section className="py-20 bg-muted/50">
+        <div className="container-section">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-100px" }}
+            variants={{
+              hidden: {},
+              visible: {
+                transition: { staggerChildren: 0.3 }
+              }
+            }}
+            className="flex flex-col md:flex-row md:items-end justify-between mb-12"
+          >
+            <div>
+              <motion.span
+                variants={fadeInUp}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-sm bg-primary/10 border border-primary/20 text-primary text-xs font-bold uppercase tracking-widest mb-3"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                Ad
+              </motion.span>
+              <motion.h2 variants={fadeInUp} className="font-heading text-3xl md:text-4xl font-bold text-navy">
+                Premium <span className="font-serif italic font-light text-primary">Collection</span>
+              </motion.h2>
+              <motion.p variants={fadeInUp} className="text-muted-foreground mt-2 max-w-lg text-lg font-light">
+                Hand-picked exclusive residences for the discerning lifestyle.
+              </motion.p>
+            </div>
+            <motion.div variants={fadeInUp}>
+              <Link to="/find-property">
+                <Button variant="outline" className="mt-4 md:mt-0 gap-2 group hover:bg-primary hover:text-white transition-all">
+                  View All Ads
+                  <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </Link>
+            </motion.div>
+          </motion.div>
+
+
+          <div className="min-h-[400px]">
+            {loadingProperties ? (
+              <div className="flex justify-center items-center h-[300px]">
+                <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+              </div>
+            ) : featuredProperties.length > 0 ? (
+              <motion.div
+                initial="initial"
+                whileInView="animate"
+                viewport={{ once: true }}
+                variants={staggerContainer}
+                className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
+              >
+                <AnimatePresence mode="popLayout">
+                  {featuredProperties.map((property) => (
+                    <motion.div
+                      key={property.id}
+                      variants={fadeInUp}
+                      layout
+                    >
+                      <PropertyCard {...property} />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </motion.div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-[300px] text-center p-8 bg-card rounded-2xl shadow-sm border border-border/50">
+                <Home className="w-12 h-12 text-muted-foreground mb-4 opacity-20" />
+                <h3 className="text-xl font-semibold text-foreground">No Featured Properties Yet</h3>
+                <p className="text-muted-foreground mt-2 max-w-md">
+                  We're currently curating our best listings. Check back soon or browse our full catalog.
+                </p>
+                <Link to="/find-property" className="mt-6">
+                  <Button variant="outline">Browse All Listings</Button>
+                </Link>
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
@@ -309,50 +435,6 @@ const Index = () => {
               ))}
             </motion.div>
           </div>
-        </div>
-      </section>
-
-      {/* Featured Properties */}
-      <section className="py-20 bg-muted/50">
-        <div className="container-section">
-          <motion.div
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true }}
-            variants={staggerContainer}
-            className="flex flex-col md:flex-row md:items-end justify-between mb-12"
-          >
-            <div>
-              <motion.span variants={fadeInUp} className="text-primary font-medium text-sm uppercase tracking-wider">
-                Featured Listings
-              </motion.span>
-              <motion.h2 variants={fadeInUp} className="font-heading text-3xl md:text-4xl font-bold text-navy mt-2">
-                Discover Your Perfect Home
-              </motion.h2>
-            </div>
-            <motion.div variants={fadeInUp}>
-              <Link to="/find-property">
-                <Button variant="outline" className="mt-4 md:mt-0">
-                  View All Properties
-                  <ChevronRight className="w-4 h-4 ml-1" />
-                </Button>
-              </Link>
-            </motion.div>
-          </motion.div>
-
-          <motion.div
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true }}
-            variants={staggerContainer}
-            className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
-          >
-            {featuredProperties.map((property, index) => (
-              <motion.div key={index} variants={fadeInUp}>
-                <PropertyCard {...property} />
-              </motion.div>
-            ))}
-          </motion.div>
         </div>
       </section>
 
@@ -472,7 +554,7 @@ const Index = () => {
           </motion.div>
         </div>
       </section>
-    </Layout>
+    </Layout >
   );
 };
 

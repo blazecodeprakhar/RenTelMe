@@ -60,6 +60,9 @@ const FindProperty = () => {
   }, []);
 
   const filteredProperties = properties.filter(property => {
+    // Check if explicitly paused by user
+    if (property.isUserActive === false) return false;
+
     const matchesSearch = (property.location?.toLowerCase() || "").includes(searchLocation.toLowerCase()) ||
       (property.title?.toLowerCase() || "").includes(searchLocation.toLowerCase());
 
@@ -202,7 +205,23 @@ const FindProperty = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
                 >
-                  <PropertyCard {...property} />
+                  <PropertyCard
+                    key={property.id}
+                    id={property.id}
+                    image={property.image}
+                    images={property.images}
+                    title={property.title}
+                    location={property.location}
+                    price={property.price}
+                    type={property.type}
+                    bedrooms={parseInt(property.bedrooms)}
+                    bathrooms={parseInt(property.bathrooms)}
+                    parking={property.parking}
+                    // Verified status is dynamically checked
+                    isVerified={property.status === 'Verified'}
+                    propertyFor={property.propertyFor}
+                    kitchenType={property.kitchenType}
+                  />
                 </motion.div>
               ))}
             </motion.div>

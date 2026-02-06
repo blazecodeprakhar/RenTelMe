@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X, Home, Search, PlusCircle, Users, Phone, User as UserIcon, LogOut, Settings } from "lucide-react";
+import { Menu, X, Home, Search, PlusCircle, Users, Phone, User as UserIcon, LogOut, Settings, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
@@ -94,15 +94,17 @@ export const Header = () => {
             {/* CTA Buttons - PC */}
             <div className="hidden lg:flex items-center gap-4">
               {!loading && currentUser ? (
-                <DropdownMenu>
+                <DropdownMenu modal={false}>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="relative h-10 w-10 rounded-full overflow-hidden border border-gray-200">
+                    <Button variant="ghost" size="icon" className="relative rounded-full overflow-hidden border border-gray-200 shadow-sm">
                       {currentUser.photoURL ? (
-                        <div className="h-full w-full rounded-full overflow-hidden">
-                          <img src={currentUser.photoURL} alt="User" className="h-full w-full object-cover" />
-                        </div>
+                        <img
+                          src={currentUser.photoURL}
+                          alt={currentUser.displayName || "User"}
+                          className="h-full w-full object-cover"
+                        />
                       ) : (
-                        <div className="h-full w-full rounded-full bg-primary/10 flex items-center justify-center">
+                        <div className="h-full w-full bg-primary/10 flex items-center justify-center">
                           <span className="text-sm font-semibold text-primary">{currentUser.email?.charAt(0).toUpperCase()}</span>
                         </div>
                       )}
@@ -120,6 +122,12 @@ export const Header = () => {
                       <Link to="/profile" className="cursor-pointer">
                         <Settings className="mr-2 h-4 w-4" />
                         <span>Account Settings</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/favorites" className="cursor-pointer">
+                        <Heart className="mr-2 h-4 w-4" />
+                        <span>My Favorites</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />

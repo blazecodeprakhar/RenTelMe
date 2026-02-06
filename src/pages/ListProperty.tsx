@@ -4,14 +4,23 @@ import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Upload, MapPin, Car, Users, IndianRupee, Camera,
-  CheckCircle, Info, ArrowRight, Home, Building2, Plus, AlertCircle, Power, Clock, XCircle, Phone, Repeat, Trash2
+  CheckCircle, Info, ArrowRight, Home, Building2, Plus, AlertCircle, Power, Clock, XCircle, Phone, Repeat, Trash2, Loader2, TrendingUp, Calendar, BedDouble, Bath
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Layout } from "@/components/layout/Layout";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
 import {
   Select,
   SelectContent,
@@ -61,11 +70,11 @@ const parkingOptions = [
 ];
 
 const imageCategories = [
+  { id: "front", label: "Front of House", icon: Home },
   { id: "rooms", label: "Rooms", icon: Home },
   { id: "bathroom", label: "Bathroom", icon: Building2 },
   { id: "kitchen", label: "Kitchen", icon: Home },
   { id: "parking", label: "Parking Area", icon: Car },
-  { id: "front", label: "Front of House", icon: Home },
 ];
 
 const ListProperty = () => {
@@ -81,15 +90,110 @@ const ListProperty = () => {
     expectedRent: "",
     description: "",
     ownerPhone: "",
-    kitchenType: ""
+    kitchenType: "",
+    bedrooms: "",
+    bathrooms: "",
+    isNegotiable: false,
+    deposit: ""
   });
   const [uploadedImages, setUploadedImages] = useState<Record<string, File[]>>({});
+  const [existingImages, setExistingImages] = useState<string[]>([]); // URLs of existing images
+  const [coverSelection, setCoverSelection] = useState<string | { category: string, index: number } | null>(null); // URL (if existing) or Object (if new)
   const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [statusMessage, setStatusMessage] = useState("");
   const [myProperties, setMyProperties] = useState<any[]>([]);
   const [loadingProperties, setLoadingProperties] = useState(true);
 
+  // Ad Request State
+  const [adDialogOpen, setAdDialogOpen] = useState(false);
+  const [selectedPropertyForAd, setSelectedPropertyForAd] = useState<any>(null);
+  const [adDuration, setAdDuration] = useState("7");
+  const [adSubmitting, setAdSubmitting] = useState(false);
+  const [adRequests, setAdRequests] = useState<any[]>([]);
+
   const { currentUser } = useAuth();
   const navigate = useNavigate();
+
+  // Ad Request Handlers
+  const handleOpenAdDialog = (property: any) => {
+    // Check if property already has active ad or pending request
+    if (property.isSponsored && property.sponsoredUntil && new Date(property.sponsoredUntil) > new Date()) {
+      toast.error("This property is already sponsored!");
+      return;
+    }
+
+    const pendingRequest = adRequests.find(req =>
+      req.propertyId === property.id && req.status === "pending"
+    );
+
+    if (pendingRequest) {
+      toast.error("You already have a pending request for this property!");
+      return;
+    }
+
+    setSelectedPropertyForAd(property);
+    setAdDialogOpen(true);
+  };
+
+  const handleSubmitAdRequest = async () => {
+    if (!selectedPropertyForAd) {
+      toast.error("No property selected for advertisement.");
+      return;
+    }
+    if (!currentUser) {
+      toast.error("You must be logged in to submit an ad request.");
+      return;
+    }
+
+    setAdSubmitting(true);
+    try {
+      const durationVal = parseInt(adDuration);
+
+      const adData = {
+        propertyId: String(selectedPropertyForAd.id),
+        propertyTitle: selectedPropertyForAd.title || "Untitled Property",
+        ownerId: currentUser.uid,
+        ownerName: currentUser.displayName || "Anonymous",
+        ownerEmail: currentUser.email || "no-email@example.com",
+        status: "pending",
+        duration: isNaN(durationVal) ? 7 : durationVal, // Default to 7 days if parsing fails
+        createdAt: new Date().toISOString()
+      };
+
+      console.log("Submitting Ad Request:", adData);
+      await addDoc(collection(db, "ad_requests"), adData);
+
+      toast.success("Request submitted successfully!");
+      setAdDialogOpen(false);
+      setAdDuration("7");
+
+      // Refresh ad requests
+      fetchAdRequests(); // Reset duration
+    } catch (err: any) {
+      console.error("Ad request failed:", err);
+      toast.error(`Failed to submit request: ${err.message || "Unknown error"}`);
+    } finally {
+      setAdSubmitting(false);
+    }
+  };
+
+  // Fetch Ad Requests
+  const fetchAdRequests = async () => {
+    if (!currentUser) return;
+
+    try {
+      const q = query(collection(db, "ad_requests"), where("ownerId", "==", currentUser.uid));
+      const querySnapshot = await getDocs(q);
+      const requests = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setAdRequests(requests);
+    } catch (error) {
+      console.error("Error fetching ad requests:", error);
+    }
+  };
 
   // Fetch User's Properties
   useEffect(() => {
@@ -113,6 +217,7 @@ const ListProperty = () => {
     };
 
     fetchMyProperties();
+    fetchAdRequests();
   }, [currentUser, step]); // Re-fetch when step changes (e.g. after submission)
 
   const handlePropertyTypeChange = (typeId: string, checked: boolean) => {
@@ -133,32 +238,93 @@ const ListProperty = () => {
     }
   };
 
+  const removeImage = (category: string, index: number) => {
+    setUploadedImages(prev => {
+      const newFiles = [...(prev[category] || [])];
+      newFiles.splice(index, 1);
+      return { ...prev, [category]: newFiles };
+    });
+  };
+
   const handleReapply = (property: any) => {
     setEditingId(property.id);
     setFormData({
       address: property.address || "",
       city: property.city || "",
-      area: property.location ? property.location.split(',')[0].trim() : "", // Simple heuristic
+      area: property.location ? property.location.split(',')[0].trim() : "",
       pincode: property.pincode || "",
       parking: property.parking || "",
       propertyTypes: property.type || [],
       expectedRent: property.price || "",
       description: property.description || "",
       ownerPhone: property.ownerPhone || "",
-      kitchenType: property.kitchenType || ""
+      kitchenType: property.kitchenType || "",
+      bedrooms: property.bedrooms || "",
+      bathrooms: property.bathrooms || "",
+      isNegotiable: property.isNegotiable || false,
+      deposit: property.deposit || ""
     });
+    setExistingImages(property.images || []);
+    setCoverSelection(property.image || (property.images && property.images[0]) || null);
     setStep(1);
-    toast.info("Updating existing application. Please review and submit.");
+    toast.info("Updating existing application. You can now edit images.");
+  };
+
+  // Helper to remove existing image (from UI and potentially Server immediately or on save? 
+  // For safety, let's delete strictly on 'Save' or separate delete button. 
+  // User requested "delete images from uploading process". 
+  // For existing images, we will delete them immediately for simplicity as per previous "Delete from Client and Admin" request which implied strict sync.
+  const deleteExistingImage = async (url: string) => {
+    try {
+      toast.loading("Deleting image...");
+      // Extract ID and delete from server
+      if (url.includes('/image/')) {
+        const fileId = url.split('/image/')[1];
+        await fetch(`https://rentelme-server.onrender.com/image/${fileId}`, { method: 'DELETE' });
+      }
+      setExistingImages(prev => prev.filter(img => img !== url));
+      if (coverSelection === url) setCoverSelection(null);
+      toast.dismiss();
+      toast.success("Image removed");
+    } catch (e) {
+      toast.error("Failed to delete image");
+    }
   };
 
   const handleDelete = async (id: string) => {
     try {
+      // 1. Get the property data to find image URLs
+      const propertyToDelete = myProperties.find(p => p.id === id);
+
+      if (propertyToDelete && propertyToDelete.images && propertyToDelete.images.length > 0) {
+        toast.loading("Deleting associated images...", { id: "delete-toast" }); // Optional: Show progress
+
+        // 2. Extract File IDs from URLs and delete from server
+        // URL format is likely: https://rentelme-server.onrender.com/image/FILE_ID
+        const deletionPromises = propertyToDelete.images.map(async (url: string) => {
+          try {
+            // simple extraction logic assuming strict format
+            const fileId = url.split('/image/')[1];
+            if (fileId) {
+              await fetch(`https://rentelme-server.onrender.com/image/${fileId}`, {
+                method: 'DELETE'
+              });
+            }
+          } catch (err) {
+            console.error("Failed to delete image from Drive:", url, err);
+          }
+        });
+
+        await Promise.all(deletionPromises);
+      }
+
+      // 3. Delete from Firestore
       await deleteDoc(doc(db, "properties", id));
       setMyProperties(prev => prev.filter(p => p.id !== id));
-      toast.success("Property deleted successfully.");
+      toast.success("Property and images deleted successfully.", { id: "delete-toast" });
     } catch (error) {
       console.error("Error deleting property:", error);
-      toast.error("Failed to delete property.");
+      toast.error("Failed to delete property.", { id: "delete-toast" });
     }
   };
 
@@ -170,8 +336,11 @@ const ListProperty = () => {
     }
 
     setSubmitting(true);
+    const toastId = toast.loading("Processing your request...");
+
     try {
-      const propertyData: any = {
+      // 1. Prepare Property Data
+      let propertyData: any = {
         ownerId: currentUser.uid,
         ownerName: currentUser.displayName || "Unknown User",
         ownerEmail: currentUser.email,
@@ -183,37 +352,125 @@ const ListProperty = () => {
         pincode: formData.pincode,
         parking: formData.parking,
         kitchenType: formData.kitchenType,
+        bedrooms: parseInt(formData.bedrooms as string) || 0,
+        bathrooms: parseInt(formData.bathrooms as string) || 0,
+        isNegotiable: formData.isNegotiable,
+        deposit: formData.deposit,
         type: formData.propertyTypes, // Array of types
         price: formData.expectedRent,
         description: formData.description,
-        status: "Pending",
-        isUserActive: true, // Auto-activate on re-submission
-        isReapplication: !!editingId, // Flag for admin
+        status: "Pending", // Always reset to Pending on edit/new
+        isUserActive: true,
+        isReapplication: !!editingId,
         updatedAt: new Date().toISOString(),
       };
 
-      if (!editingId) {
-        // New Listing
-        propertyData.createdAt = new Date().toISOString();
-        propertyData.image = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"; // Mock
-        propertyData.imagesCount = Object.values(uploadedImages).reduce((acc, curr) => acc + curr.length, 0);
+      // 2. Upload Images to Google Drive
+      const uploadedImageUrls: string[] = [];
+      let newMainImageUrl: string | null = null;
 
+      const allFiles: { file: File, category: string, index: number }[] = [];
+
+      // Flatten files while keeping track of their origin for cover selection matching
+      Object.keys(uploadedImages).forEach(cat => {
+        uploadedImages[cat].forEach((file, idx) => {
+          allFiles.push({ file, category: cat, index: idx });
+        });
+      });
+
+      if (allFiles.length > 0) {
+        setUploadProgress(5);
+        let completed = 0;
+        const total = allFiles.length;
+
+        for (const item of allFiles) {
+          setStatusMessage(`Uploading image ${completed + 1} of ${total}...`);
+
+          const formData = new FormData();
+          formData.append('image', item.file);
+
+          try {
+            const response = await fetch('https://rentelme-server.onrender.com/upload', { method: 'POST', body: formData });
+
+            if (!response.ok) {
+              throw new Error("Upload failed");
+            }
+
+            const data = await response.json();
+
+            if (data.displayUrl) {
+              uploadedImageUrls.push(data.displayUrl);
+
+              // Check if this was the selected cover
+              if (
+                typeof coverSelection === 'object' &&
+                coverSelection !== null &&
+                coverSelection.category === item.category &&
+                coverSelection.index === item.index
+              ) {
+                newMainImageUrl = data.displayUrl;
+              }
+            }
+          } catch (uploadError) {
+            console.error("Upload failed for file:", item.file.name, uploadError);
+            toast.error(`Failed to upload ${item.file.name}.`, { id: toastId });
+          }
+
+          completed++;
+          setUploadProgress(5 + Math.round((completed / total) * 85));
+        }
+      }
+
+      setStatusMessage("Finalizing property details...");
+      setUploadProgress(95);
+
+      // 3. Finalize Data
+      // Combine Existing + New
+      const finalImages = [...existingImages, ...uploadedImageUrls];
+
+      if (finalImages.length > 0) {
+        // Determine Main Image
+        if (newMainImageUrl) {
+          propertyData.image = newMainImageUrl;
+        } else if (typeof coverSelection === 'string' && existingImages.includes(coverSelection)) {
+          propertyData.image = coverSelection;
+        } else {
+          // Default to first image
+          propertyData.image = finalImages[0];
+        }
+
+        propertyData.images = finalImages;
+        propertyData.imagesCount = finalImages.length;
+      } else if (!editingId) {
+        propertyData.image = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80";
+        propertyData.images = [];
+        propertyData.imagesCount = 0;
+      }
+
+      if (!editingId) {
+        // NEW Listing
+        propertyData.createdAt = new Date().toISOString();
         await addDoc(collection(db, "properties"), propertyData);
+        toast.success("Property listed successfully! Pending approval.", { id: toastId });
       } else {
-        // Re-application / Update
-        // We keep existing images if no new ones, or add logic to update them. For this demo, we assume keeping existing unless overwritten.
-        // Reset rejection reason
-        propertyData.rejectionReason = null;
+        // UPDATE Listing
+        propertyData.rejectionReason = null; // Clear rejection
+        if (uploadedImageUrls.length === 0) {
+          delete propertyData.image;
+          delete propertyData.images;
+          delete propertyData.imagesCount;
+        }
 
         await updateDoc(doc(db, "properties", editingId), propertyData);
+        toast.success("Re-application submitted successfully!", { id: toastId });
       }
 
       setStep(3);
-      toast.success(editingId ? "Re-application submitted successfully!" : "Property listed successfully! Pending approval.");
       setEditingId(null);
+      setUploadedImages({}); // Clear uploads
     } catch (error) {
       console.error("Error listing property:", error);
-      toast.error("Failed to submit property. Please try again.");
+      toast.error("Failed to submit property. Please try again.", { id: toastId });
     } finally {
       setSubmitting(false);
     }
@@ -267,14 +524,30 @@ const ListProperty = () => {
       <section className="py-12 md:py-16">
         <div className="container-section max-w-4xl">
 
-          {/* STEP 0: DASHBOARD */}
-          {step === 0 && (
+          {/* STEP 0: GUEST VIEW */}
+          {step === 0 && !currentUser && (
+            <div className="text-center py-20 px-4 bg-card rounded-2xl border border-dashed shadow-sm">
+              <div className="w-20 h-20 rounded-full bg-primary/10 mx-auto flex items-center justify-center mb-6 text-primary">
+                <Home className="w-10 h-10" />
+              </div>
+              <h2 className="text-2xl font-bold text-navy mb-3">Login to List Your Property</h2>
+              <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+                You need to be logged in to post ads, manage listings, and view tenant inquiries.
+              </p>
+              <Button onClick={() => navigate('/signin')} size="lg" className="bg-primary text-white shadow-lg hover:bg-primary/90 px-8">
+                Login / Sign Up
+              </Button>
+            </div>
+          )}
+
+          {/* STEP 0: DASHBOARD (Logged In) */}
+          {step === 0 && currentUser && (
             <div className="space-y-8">
               <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-navy">Your Properties</h2>
                 <Button onClick={() => {
                   setEditingId(null); setStep(1); setFormData({
-                    address: "", city: "", area: "", pincode: "", parking: "", propertyTypes: [], expectedRent: "", description: "", ownerPhone: "", kitchenType: ""
+                    address: "", city: "", area: "", pincode: "", parking: "", propertyTypes: [], expectedRent: "", description: "", ownerPhone: "", kitchenType: "", bedrooms: "", bathrooms: "", isNegotiable: false, deposit: ""
                   });
                 }} className="bg-primary text-white shadow-lg hover:bg-primary/90">
                   <Plus className="w-4 h-4 mr-2" /> List New Property
@@ -287,15 +560,16 @@ const ListProperty = () => {
                 <div className="grid gap-6 md:grid-cols-2">
                   {myProperties.map((property) => (
                     <Card key={property.id} className="overflow-hidden border border-border shadow-soft group hover:shadow-elevated transition-shadow">
-                      <div className="aspect-video w-full bg-muted relative">
+                      <ImageWithSkeleton
+                        src={property.image}
+                        alt={property.title}
+                        containerClassName="aspect-video w-full"
+                        className={`w-full h-full object-cover ${!property.isUserActive ? 'grayscale opacity-70' : ''}`}
+                      >
                         {property.isReapplication && (
                           <div className="absolute top-3 left-3 z-10 bg-blue-600 text-white text-xs px-2 py-1 rounded-full shadow-md">Reapplied</div>
                         )}
-                        <img
-                          src={property.image}
-                          alt={property.title}
-                          className={`w-full h-full object-cover ${!property.isUserActive ? 'grayscale opacity-70' : ''}`}
-                        />
+
                         <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
                           {/* Status Badge */}
                           <span className={`px-3 py-1 rounded-full text-xs font-bold shadow-sm ${property.status === 'Verified' ? 'bg-white text-emerald-600' :
@@ -304,6 +578,13 @@ const ListProperty = () => {
                             }`}>
                             {property.status === 'Verified' ? 'Approved' : property.status || "Pending"}
                           </span>
+
+                          {property.isSponsored && property.sponsoredUntil && new Date(property.sponsoredUntil) > new Date() && (
+                            <span className="px-3 py-1 rounded-full text-xs font-bold shadow-sm bg-indigo-600 text-white flex items-center gap-1">
+                              <TrendingUp className="w-3 h-3" />
+                              Exp: {new Date(property.sponsoredUntil).toLocaleDateString()}
+                            </span>
+                          )}
                         </div>
 
                         {!property.isUserActive && property.status === 'Verified' && (
@@ -313,7 +594,7 @@ const ListProperty = () => {
                             </span>
                           </div>
                         )}
-                      </div>
+                      </ImageWithSkeleton>
                       <CardHeader className="pb-3">
                         <div className="flex justify-between items-start">
                           <div>
@@ -352,17 +633,46 @@ const ListProperty = () => {
                       </CardContent>
                       <CardFooter className="pt-2 border-t bg-gray-50/50 flex gap-2">
                         {property.status === 'Verified' ? (
-                          <Button
-                            variant={property.isUserActive ? "outline" : "default"}
-                            size="sm"
-                            onClick={() => togglePropertyStatus(property.id, property.isUserActive, property.status)}
-                            className={`flex-1 ${!property.isUserActive ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}
-                          >
-                            <Power className="w-4 h-4 mr-2" />
-                            {property.isUserActive ? "Pause Listing" : "Activate Listing"}
-                          </Button>
+                          <>
+                            <Button
+                              variant={property.isUserActive ? "outline" : "default"}
+                              size="sm"
+                              onClick={() => togglePropertyStatus(property.id, property.isUserActive, property.status)}
+                              className={`flex-1 ${!property.isUserActive ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}
+                            >
+                              <Power className="w-4 h-4 mr-2" />
+                              {property.isUserActive ? "Pause" : "Activate"}
+                            </Button>
+                            {property.isSponsored && property.sponsoredUntil && new Date(property.sponsoredUntil) > new Date() ? (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-emerald-200 cursor-default"
+                                disabled
+                              >
+                                <TrendingUp className="w-4 h-4 mr-1" /> Active Ad
+                              </Button>
+                            ) : adRequests.find(req => req.propertyId === property.id && req.status === "pending") ? (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="bg-amber-100 text-amber-700 hover:bg-amber-200 border-amber-200 cursor-default"
+                                disabled
+                              >
+                                <Clock className="w-4 h-4 mr-1" /> Pending
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border-indigo-200"
+                                onClick={() => handleOpenAdDialog(property)}
+                              >
+                                <TrendingUp className="w-4 h-4 mr-1" /> Promote
+                              </Button>
+                            )}
+                          </>
                         ) : (
-                          // Placeholder to keep spacing
                           <div className="flex-1"></div>
                         )}
 
@@ -402,6 +712,43 @@ const ListProperty = () => {
             </div>
           )}
 
+          {/* Ad Request Dialog */}
+          <Dialog open={adDialogOpen} onOpenChange={setAdDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Promote Your Property</DialogTitle>
+                <DialogDescription>
+                  Request to feature <strong>{selectedPropertyForAd?.title}</strong> in our Premium Collection.
+                  Ads are subject to admin approval.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4 space-y-4">
+                <div className="space-y-2">
+                  <Label>Select Duration</Label>
+                  <Select value={adDuration} onValueChange={setAdDuration}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="3">3 Days</SelectItem>
+                      <SelectItem value="7">7 Days (Standard)</SelectItem>
+                      <SelectItem value="15">15 Days</SelectItem>
+                      <SelectItem value="30">30 Days (Best Value)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Premium listings get 10x more views on average.</p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setAdDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleSubmitAdRequest} disabled={adSubmitting}>
+                  {adSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Submit Request
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
           {/* Details Form Step */}
           {step === 1 && (
             <motion.div
@@ -439,14 +786,20 @@ const ListProperty = () => {
                   </h3>
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div className="sm:col-span-2">
-                      <Label htmlFor="address">Complete Address</Label>
+                      <Label htmlFor="address">
+                        Complete Address <span className="text-xs text-muted-foreground font-normal ml-1">(Max 250 chars)</span>
+                      </Label>
+                      <p className="text-xs text-muted-foreground mb-1.5">
+                        Include building name, landmark, and road details.
+                      </p>
                       <Textarea
                         id="address"
-                        placeholder="Enter full address..."
+                        placeholder="Enter complete property address..."
                         value={formData.address}
-                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, address: e.target.value.slice(0, 250) })}
                         className="mt-1.5"
                         required
+                        maxLength={250}
                       />
                     </div>
                     <div>
@@ -475,12 +828,55 @@ const ListProperty = () => {
                       <Label htmlFor="pincode">Pincode</Label>
                       <Input
                         id="pincode"
-                        placeholder="Enter pincode"
+                        placeholder="123456"
                         value={formData.pincode}
-                        onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                          setFormData({ ...formData, pincode: val });
+                        }}
                         className="mt-1.5"
                         required
+                        inputMode="numeric"
                       />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Configuration Section */}
+                <div className="space-y-4">
+                  <h3 className="font-medium text-foreground flex items-center gap-2">
+                    <Home className="w-5 h-5 text-primary" />
+                    Configuration Details
+                  </h3>
+                  <div className="grid sm:grid-cols-2 gap-6">
+                    <div>
+                      <Label htmlFor="bedrooms" className="flex items-center gap-2">
+                        <BedDouble className="w-4 h-4 text-muted-foreground" /> Bedrooms
+                      </Label>
+                      <Select value={String(formData.bedrooms)} onValueChange={(val) => setFormData({ ...formData, bedrooms: val })}>
+                        <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select Bedrooms" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">1 BHK / 1 RK</SelectItem>
+                          <SelectItem value="2">2 BHK</SelectItem>
+                          <SelectItem value="3">3 BHK</SelectItem>
+                          <SelectItem value="4">4 BHK</SelectItem>
+                          <SelectItem value="5">5+ BHK</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="bathrooms" className="flex items-center gap-2">
+                        <Bath className="w-4 h-4 text-muted-foreground" /> Bathrooms
+                      </Label>
+                      <Select value={String(formData.bathrooms)} onValueChange={(val) => setFormData({ ...formData, bathrooms: val })}>
+                        <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select Bathrooms" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">1 Bathroom</SelectItem>
+                          <SelectItem value="2">2 Bathrooms</SelectItem>
+                          <SelectItem value="3">3 Bathrooms</SelectItem>
+                          <SelectItem value="4">4+ Bathrooms</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                 </div>
@@ -547,6 +943,29 @@ const ListProperty = () => {
                         required
                       />
                     </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="negotiable"
+                        checked={formData.isNegotiable}
+                        onCheckedChange={(c) => setFormData({ ...formData, isNegotiable: c as boolean })}
+                      />
+                      <Label htmlFor="negotiable" className="cursor-pointer font-normal text-sm text-muted-foreground">
+                        Rent is Negotiable
+                      </Label>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h3 className="font-medium text-foreground flex items-center gap-2">
+                      <span className="font-bold text-primary border-2 border-primary rounded-full w-5 h-5 flex items-center justify-center text-xs">₹</span>
+                      Security Deposit
+                    </h3>
+                    <Input
+                      placeholder="e.g. 2 Months Rent"
+                      value={formData.deposit}
+                      onChange={(e) => setFormData({ ...formData, deposit: e.target.value })}
+                      required
+                    />
                   </div>
 
                   {/* Phone Number Input */}
@@ -561,9 +980,14 @@ const ListProperty = () => {
                         type="tel"
                         placeholder="9876543210"
                         value={formData.ownerPhone}
-                        onChange={(e) => setFormData({ ...formData, ownerPhone: e.target.value })}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          setFormData({ ...formData, ownerPhone: val });
+                        }}
                         className="pl-12"
                         required
+                        inputMode="numeric"
+                        minLength={10}
                       />
                     </div>
                   </div>
@@ -595,12 +1019,17 @@ const ListProperty = () => {
 
                 <div className="space-y-4">
                   <h3 className="font-medium text-foreground">Property Description</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Write a clear and attractive property description (50–500 characters) including property type, key amenities, nearby locations, and ideal tenants.
+                  </p>
                   <Textarea
-                    placeholder="Describe your property..."
+                    placeholder="E.g., Spacious 2BHK with balcony, near metro station, perfect for families..."
                     value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value.slice(0, 500) })}
                     rows={4}
                     required
+                    minLength={50}
+                    maxLength={500}
                   />
                 </div>
 
@@ -627,33 +1056,137 @@ const ListProperty = () => {
               </h2>
               <p className="text-muted-foreground mb-6">
                 Add clear photos of your property. Good photos attract more renters!
+                <br />
+                <span className="text-primary font-medium text-sm flex items-center gap-1 mt-1">
+                  <CheckCircle className="w-3 h-3" /> Select one image as the "Front Thumbnail" to be displayed on search cards.
+                </span>
               </p>
 
               <div className="space-y-6">
+
+                {/* EXISTING IMAGES SECTION */}
+                {existingImages.length > 0 && (
+                  <div className="space-y-3 pb-6 border-b border-dashed">
+                    <h3 className="font-semibold text-lg flex items-center gap-2">
+                      <img src="/placeholder.svg" className="w-0 h-0" onError={(e) => e.currentTarget.style.display = 'none'} /> {/* Hack to keep consistent */}
+                      Current Images
+                    </h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                      {existingImages.map((imgUrl, idx) => (
+                        <div key={idx} className={`relative group aspect-square rounded-lg overflow-hidden border shadow-sm ${coverSelection === imgUrl ? 'ring-4 ring-primary border-primary' : 'border-border'}`}>
+                          <img src={imgUrl} alt="Existing" className="w-full h-full object-cover" />
+
+                          {/* Cover Badge */}
+                          {coverSelection === imgUrl && (
+                            <div className="absolute top-2 left-2 bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md z-10">
+                              THUMBNAIL
+                            </div>
+                          )}
+
+                          {/* Overlay Actions */}
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                            {coverSelection !== imgUrl && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                className="h-7 text-xs bg-white/90 hover:bg-white text-black"
+                                onClick={() => setCoverSelection(imgUrl)}
+                              >
+                                Set as Thumbnail
+                              </Button>
+                            )}
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              className="h-8 w-8 rounded-full"
+                              onClick={() => deleteExistingImage(imgUrl)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {imageCategories.map((category) => (
                   <div key={category.id} className="space-y-3">
                     <Label className="flex items-center gap-2">
                       <category.icon className="w-4 h-4 text-primary" />
                       {category.label}
                     </Label>
-                    <div className="border-2 border-dashed border-border rounded-xl p-6 text-center hover:border-primary/50 transition-colors cursor-pointer relative">
+
+                    {/* Upload Area */}
+                    <div className="border-2 border-dashed border-border rounded-xl p-6 text-center hover:border-primary/50 transition-colors cursor-pointer relative bg-card/50">
                       <input
                         type="file"
                         multiple
                         accept="image/*"
-                        className="absolute inset-0 opacity-0 cursor-pointer"
+                        className="absolute inset-0 opacity-0 cursor-pointer z-10"
                         onChange={(e) => handleImageUpload(category.id, e.target.files)}
                       />
                       <Camera className="w-10 h-10 mx-auto text-muted-foreground mb-2" />
-                      <p className="text-sm text-muted-foreground">
-                        Click to upload or drag and drop
+                      <p className="text-sm text-muted-foreground font-medium">
+                        Click to upload photos
                       </p>
-                      {uploadedImages[category.id]?.length > 0 && (
-                        <p className="text-sm text-primary mt-2">
-                          {uploadedImages[category.id].length} image(s) selected
-                        </p>
-                      )}
+                      <p className="text-xs text-muted-foreground/70">
+                        Supports JPG, PNG
+                      </p>
                     </div>
+
+                    {/* Image Previews */}
+                    {uploadedImages[category.id]?.length > 0 && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-4">
+                        {uploadedImages[category.id].map((file, index) => (
+                          <div key={`${file.name}-${index}`} className={`relative group aspect-square rounded-lg overflow-hidden border shadow-sm ${typeof coverSelection === 'object' && coverSelection?.category === category.id && coverSelection?.index === index ? 'ring-4 ring-primary border-primary' : 'border-border'}`}>
+                            <img
+                              src={URL.createObjectURL(file)}
+                              alt="Preview"
+                              className="w-full h-full object-cover"
+                              onLoad={(e) => URL.revokeObjectURL(e.currentTarget.src)}
+                            />
+
+                            {/* Cover Badge */}
+                            {typeof coverSelection === 'object' && coverSelection?.category === category.id && coverSelection?.index === index && (
+                              <div className="absolute top-2 left-2 bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md z-10">
+                                THUMBNAIL
+                              </div>
+                            )}
+
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                              {/* Make Cover Button */}
+                              {!(typeof coverSelection === 'object' && coverSelection?.category === category.id && coverSelection?.index === index) && (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="secondary"
+                                  className="h-7 text-xs bg-white/90 hover:bg-white text-black"
+                                  onClick={() => setCoverSelection({ category: category.id, index })}
+                                >
+                                  Set as Thumbnail
+                                </Button>
+                              )}
+
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="icon"
+                                className="h-8 w-8 rounded-full"
+                                onClick={() => removeImage(category.id, index)}
+                              >
+                                <XCircle className="w-5 h-5" />
+                              </Button>
+                            </div>
+                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-2 py-1 truncate">
+                              {file.name}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
 
@@ -747,6 +1280,40 @@ const ListProperty = () => {
             </div>
           </div>
         </section>
+      )}
+
+      {/* Submission Overlay */}
+      {submitting && (
+        <div className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-md flex items-center justify-center p-4">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-card w-full max-w-sm md:max-w-md rounded-2xl p-8 shadow-2xl border border-border text-center space-y-8"
+          >
+            <div className="mx-auto w-24 h-24 relative flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full border-4 border-primary/20"></div>
+              <div className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+              <Loader2 className="w-8 h-8 text-primary animate-pulse" />
+            </div>
+
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold font-heading">Submitting Property</h2>
+              <p className="text-muted-foreground text-sm font-medium">{statusMessage || "Preparing..."}</p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="h-3 w-full bg-secondary/10 rounded-full overflow-hidden border border-secondary/20">
+                <motion.div
+                  className="h-full bg-gradient-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]"
+                  initial={{ width: "0%" }}
+                  animate={{ width: `${uploadProgress}%` }}
+                  transition={{ type: "spring", stiffness: 50 }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground text-right tabular-nums">{uploadProgress}%</p>
+            </div>
+          </motion.div>
+        </div>
       )}
     </Layout>
   );

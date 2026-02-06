@@ -146,8 +146,8 @@ const Profile = () => {
                         <CardContent>
                             <form onSubmit={handleUpdateProfile} className="space-y-6">
                                 <div className="flex flex-col items-center sm:flex-row gap-6 mb-8">
-                                    <div className="relative">
-                                        <div className="h-24 w-24 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden border-4 border-white shadow-lg">
+                                    <div className="relative group">
+                                        <div className="h-24 w-24 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden border-4 border-white shadow-lg relative">
                                             {userData.photoURL ? (
                                                 <img src={userData.photoURL} alt="Profile" className="h-full w-full object-cover" />
                                             ) : (
@@ -155,9 +155,55 @@ const Profile = () => {
                                                     {getInitials()}
                                                 </span>
                                             )}
+                                            {loading && (
+                                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                                    <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                </div>
+                                            )}
                                         </div>
-                                        {/* In a real app, this would trigger a file upload */}
-                                        <button type="button" className="absolute bottom-0 right-0 p-1.5 bg-primary text-white rounded-full hover:bg-primary/90 transition-colors shadow-sm" onClick={() => toast.info("Image upload coming soon!")}>
+
+                                        <input
+                                            type="file"
+                                            id="photo-upload"
+                                            className="hidden"
+                                            accept="image/*"
+                                            onChange={async (e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+
+                                                const formData = new FormData();
+                                                formData.append('image', file);
+
+                                                setLoading(true);
+                                                toast.loading("Uploading photo...");
+
+                                                try {
+                                                    const response = await fetch('https://rentelme-server.onrender.com/upload', {
+                                                        method: 'POST',
+                                                        body: formData,
+                                                    });
+
+                                                    if (!response.ok) throw new Error('Upload failed');
+
+                                                    const data = await response.json();
+                                                    setUserData(prev => ({ ...prev, photoURL: data.displayUrl }));
+                                                    toast.dismiss();
+                                                    toast.success("Photo uploaded! Click Save internally.");
+                                                } catch (error) {
+                                                    console.error("Upload error:", error);
+                                                    toast.dismiss();
+                                                    toast.error("Failed to upload photo");
+                                                } finally {
+                                                    setLoading(false);
+                                                }
+                                            }}
+                                        />
+                                        <button
+                                            type="button"
+                                            className="absolute bottom-0 right-0 p-1.5 bg-primary text-white rounded-full hover:bg-primary/90 transition-colors shadow-sm cursor-pointer z-10"
+                                            onClick={() => document.getElementById('photo-upload')?.click()}
+                                            disabled={loading}
+                                        >
                                             <Camera className="h-4 w-4" />
                                         </button>
                                     </div>

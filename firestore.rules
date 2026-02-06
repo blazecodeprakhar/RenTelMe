@@ -42,5 +42,11 @@ service cloud.firestore {
       allow update: if isOwner(resource.data.ownerId) || isAdmin();
       allow delete: if isOwner(resource.data.ownerId) || isAdmin();
     }
+
+    // AD REQUESTS
+    match /ad_requests/{requestId} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if isAdmin() || (isSignedIn() && resource.data.ownerId == request.auth.uid);
+    }
   }
 }
